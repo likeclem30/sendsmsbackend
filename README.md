@@ -1,1 +1,3 @@
-# sendsmsbackend
+# sendsmsbackend service
+
+Manage sending sms

@@ -1,0 +1,15 @@
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+    name: message-backend-ingress
+    namespace: example
+spec:
+    rules:
+        - host: message.example.local
+          http:
+            paths:
+              - backend:
+                  serviceName: message-service
+                  servicePort: 80
+                path: /

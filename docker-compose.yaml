@@ -1,0 +1,123 @@
+version: "3"
+
+services:
+    # Development related
+    test-sqlite:
+        environment:
+            - PYTHONDONTWRITEBYTECODE=1
+        env_file: environment2.env
+        build:
+            dockerfile: docker/app/Dockerfile
+            context: .
+        entrypoint: pytest
+        volumes:
+            - ./MessageBackend:/opt/code
+
+    test-postgresql:
+        env_file: environment.env
+        environment:
+            - PYTHONDONTWRITEBYTECODE=1
+        build:
+            dockerfile: docker/app/Dockerfile
+            context: .
+        entrypoint: pytest
+        depends_on:
+            - db
+            - rabbitmq
+        volumes:
+            - ./MessageBackend:/opt/code
+
+    # Pipeline actions
+    test:
+        env_file: environment.env
+        environment:
+            - PYTHONDONTWRITEBYTECODE=1
+        build:
+            dockerfile: docker/app/Dockerfile
+            context: .
+        entrypoint: pytest
+        depends_on:
+            - db
+            - rabbitmq
+
+    static-analysis:
+        build:
+            dockerfile: docker/app/Dockerfile
+            context: .
+        entrypoint: flake8
+
+    db:
+        env_file: environment.env
+        environment:
+            - PYTHONDONTWRITEBYTECODE=1
+        build:
+            context: .
+            dockerfile: ./docker/db/Dockerfile
+            args:
+                # These values should be in sync with environment
+                # for development. If you change them, you'll
+                # need to rebuild the container
+                - POSTGRES_DB=message
+                - POSTGRES_USER=postgres
+                - POSTGRES_PASSWORD=somepassword
+                - POSTGRES_PORT=5432
+
+    # Producion related
+    # Note that db-debug is the same as db, but it exposes locally
+    # port 5432 to access PostgreSQL
+    db-debug:
+        build:
+            context: .
+            dockerfile: ./docker/db/Dockerfile
+            args:
+                # These values should be in sync with environment
+                # for development. If you change them, you'll
+                # need to rebuild the container
+                - POSTGRES_DB=message
+                - POSTGRES_USER=postgres
+                - POSTGRES_PASSWORD=somepassword
+                - POSTGRES_PORT=5432
+        ports:
+            - "5432:5432"
+
+    server: &server
+        env_file: environment.env
+        image: messages_server
+        build:
+            context: .
+            dockerfile: docker/app/Dockerfile
+        ports:
+            - "7001:8000"
+        depends_on:
+            - db
+            - rabbitmq
+            - celery_worker
+            - celery_beat
+
+    # Rabbit message queue
+    rabbitmq:
+        image: rabbitmq:3.8-alpine
+
+    # Celery Worker
+    celery_worker:
+        env_file: environment.env
+        image: celery_terminal
+        build:
+            context: .
+            dockerfile: docker/celery/worker/Dockerfile
+        ports: []
+        depends_on:
+            - rabbitmq
+            - db
+
+    # Celery Beat
+    celery_beat:
+        env_file: environment.env
+        image: celery_beat
+        build:
+            context: .
+            dockerfile: docker/celery/beat/Dockerfile
+        ports: []
+        depends_on:
+            - rabbitmq
+            - db
